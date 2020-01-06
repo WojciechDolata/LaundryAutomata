@@ -2,6 +2,18 @@
 -module(machine).
 -compile([export_all]).
 
+print({printstate,Msg}) ->
+    io:format("\e[~p;~pH~s\n",[1, 20, "State:   " ++ Msg ++ "                                              "]);   
+print({printstep,Msg}) ->
+    io:format("\e[~p;~pH~s\n",[2, 20,"Step:    " ++ Msg ++ "                                               "]); 
+print({finished}) ->
+    io:format("\e[~p;~pH~s\n",[3, 20,"Status:  Finished" ++ "                                               "]),
+    mySleep(1*pace());
+print({in_progress}) ->
+    io:format("\e[~p;~pH~s\n",[3, 20,"Status:  In progress" ++ "                                               "]);
+print({clear}) ->
+    io:format("\e[2J",[]).
+
 % how fast does the simmulation go (x20)
 pace() -> 20.
 
@@ -9,20 +21,18 @@ pace() -> 20.
 mySleep(T) -> 
     timer:sleep(round(1000*T/pace())).
 
-print(N) ->
-    io:format("~p ~n",[N]).
-
 lock(PPID) ->
-    print("Locking door"),
+    print({printstep, "Locking door"}),
+    print({in_progress}),
+    print({finished}),
     PPID!{"Lock_Success"}.
 
 prewash(PPID) ->
-    print("Pre-washing begins"),
+    print({printstate, "PRE-WASHING"}),
     LoopPID = spawn(machine, prewash_receive, [self()]),
     LoopPID!{"Start"},
     receive
         {"Prewash_Success"} -> 
-            print("Finished prewashing"),
             PPID!{"Prewash_Success"}
     end.
 
@@ -45,40 +55,44 @@ prewash_receive(PPID) ->
     end.
 
 wash(PPID, T, RPM) ->
-    print("KKK").
+    print({printstate, "KKK"}).
 
 pump(PPID) ->
-    print("Pumping water"),
+    print({printstep, "Pumping water"}),
+    print({in_progress}),
     mySleep(40),
-    print("Water pumped"),
+    print({finished}),
     PPID!{"Pumped"}.
 
 rotate(PPID, RPM, Time) ->
-    print("Startint to rotate at"),
+    print({printstep, "Rotating at " ++ integer_to_list(RPM) ++ " RPM"}),
+    print({in_progress}),
     mySleep(Time),
-    print("Rotating ended"),
+    print({finished}),
     PPID!{"Rotated"}.
 
 heat(PPID, T) ->
-    print("Heating water up"),
+    print({printstep, "Heating water up to " ++ integer_to_list(T) ++ " C"}),
+    print({in_progress}),
     mySleep(T*5),
-    print("Water temperature at"),
-    print(T),
+    print({finished}),
     PPID!{"Heated"}.
 
 water_fill(PPID) ->
-    print("Filling with water"),
+    print({printstep, "Filling with water"}),
+    print({in_progress}),
     mySleep(60),
-    print("Filled"),
+    print({finished}),
     PPID!{"Filled"}.
 
 start(T, RPM, Should_Prewash) ->
+    print({clear}),
     spawn(machine, lock, [self()]),
     receive
         {"Lock_Success"} -> if Should_Prewash ->
                                 spawn(machine, prewash, [self()]);
                             true -> spawn(machine, wash, [self(), T, RPM])
-                        end;
-        {"Prewash_Success"} -> spawn(machine, prewash, [self(), T, RPM])
+                        end
+        %{"Prewash_Success"} -> spawn(machine, wash, [self(), T, RPM])
     end.
 
