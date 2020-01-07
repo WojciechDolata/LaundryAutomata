@@ -33,6 +33,8 @@ prewash(PPID) ->
     LoopPID!{"Start"},
     receive
         {"Prewash_Success"} -> 
+            % print({printstep, "koniec"}),
+            % spawn(machine, wash, [PPID,30,100])
             PPID!{"Prewash_Success"}
     end.
 
@@ -85,14 +87,25 @@ water_fill(PPID) ->
     print({finished}),
     PPID!{"Filled"}.
 
-start(T, RPM, Should_Prewash) ->
-    print({clear}),
-    spawn(machine, lock, [self()]),
+main_receive(PPID, T, RPM, Should_Prewash) ->
     receive
-        {"Lock_Success"} -> if Should_Prewash ->
-                                spawn(machine, prewash, [self()]);
-                            true -> spawn(machine, wash, [self(), T, RPM])
-                        end
-        %{"Prewash_Success"} -> spawn(machine, wash, [self(), T, RPM])
+        {"Lock_Success"} -> 
+            if Should_Prewash ->
+                spawn(machine, prewash, [self()]);
+            true -> spawn(machine, wash, [self(), T, RPM])
+            end,
+            main_receive(PPID, T, RPM, Should_Prewash);
+        {"Prewash_Success"} -> 
+            spawn(machine, wash, [self(), T, RPM]),
+            main_receive(PPID, T, RPM, Should_Prewash);
+        {"Wash_Success"} -> 
+            -1 % tu sie wykaz
     end.
 
+start(T, RPM, Should_Prewash) ->
+    print({clear}),
+    ReceivePID = spawn(machine, main_receive, [self(), T, RPM, Should_Prewash]),
+    spawn(machine, lock, [ReceivePID]),
+    receive
+        {"Finish"} -> 0 % na koniec przesyłamy sobie finisz
+    end.
