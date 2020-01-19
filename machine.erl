@@ -1,4 +1,3 @@
-
 -module(machine).
 -compile([export_all]).
 
@@ -170,30 +169,45 @@ get_zmiekczacz(PPID) ->
     print({finished}),
     PPID!{"Filled_Zmiekczacz"}. 
 
-main_receive(PPID, T, RPM, Should_Prewash) ->
+main_receive(PPID, Child, T, RPM, Should_Prewash) ->
     receive
         {"Lock_Success"} -> 
             if Should_Prewash ->
-                spawn(machine, prewash, [self()]);
-            true -> spawn(machine, wash, [self(), T, RPM])
+                CID = spawn(machine, prewash, [self()]);
+            true -> CID = spawn(machine, wash, [self(), T, RPM])
             end,
-            main_receive(PPID, T, RPM, Should_Prewash);
+            main_receive(PPID, CID, T, RPM, Should_Prewash);
         {"Prewash_Success"} -> 
             spawn(machine, wash, [self(), T, RPM]),
-            main_receive(PPID, T, RPM, Should_Prewash);
+            main_receive(PPID, Child, T, RPM, Should_Prewash);
         {"Wash_Success"} -> 
             spawn(machine, touches, [self(), T, RPM]),
-            main_receive(PPID, T, RPM, Should_Prewash);
+            main_receive(PPID, Child, T, RPM, Should_Prewash);
         {"FT_Success"} ->
-            PPID!{"Finish"}
+            PPID!{"Finish"};
+        {"Kill"} -> 
+            exit(Child, kill),
+            pump(self())
     end.
 
-start(T, RPM, Should_Prewash) ->
+start_program(T, RPM, Should_Prewash) ->
     print({clear}),
-    ReceivePID = spawn(machine, main_receive, [self(), T, RPM, Should_Prewash]),
+    ReceivePID = spawn(machine, main_receive, [self(), self(), T, RPM, Should_Prewash]),
     spawn(machine, lock, [ReceivePID]),
     receive
-        {"Finish"} -> print({printstate, "FINISHED"}),
-                       print({printstep, ""}) % na koniec przesyłamy sobie finisz
+        {"Kill"} -> 
+            ReceivePID!{"Kill"};
+        {"Finish"} -> 
+            print({printstate, "FINISHED"}),
+            print({printstep, ""});
+        _ -> ok
     end.
-    
+
+start_machine() -> 
+    print({clear}),
+    {ok, T} = io:read("Type temperature: "),
+    {ok, RPM} = io:read("Type RPM: "),
+    {ok, Should_Prewash} = io:read("Is Prewash required: [true/false]"),
+    Program = spawn(machine, start_program, [T, RPM, Should_Prewash]),
+    {ok, _} = io:read(""),
+    Program!{"Kill"}.
