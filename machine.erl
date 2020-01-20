@@ -44,7 +44,7 @@ prewash_receive(PPID) ->
             spawn(machine, heat, [self(), 30]),
             prewash_receive(PPID); %heat up to 30 C
         {"Heated"} -> 
-            spawn(machine, rotate, [self(), 400, 15]),
+            spawn(machine, rotate, [self(), "", 400, 15]),
             prewash_receive(PPID); %slowly spin at 400 RPM
         {"Rotated"} ->
             spawn(machine, pump, [self()]),
@@ -71,13 +71,13 @@ wash_receive(PPID, T, RPM) ->
             spawn(machine, heat, [self(), T]),
             wash_receive(PPID, T, RPM);
         {"Heated"} -> 
-            spawn(machine, rotate, [self(), 400, 60]),
+            spawn(machine, rotate, [self(), "1", 400, 60]),
             wash_receive(PPID, T, RPM);
-        {"Rotated"} ->
+        {"Rotated1"} ->
             spawn(machine, cold_water_fill, [self()]),
             wash_receive(PPID, T, RPM);
         {"Filled_Cold"} ->
-            spawn(machine, rotate2, [self(), 400, 15]),
+            spawn(machine, rotate, [self(), "2", 400, 15]),
             wash_receive(PPID, T, RPM);
         {"Rotated2"} ->
             PPID!{"Wash_Success"}
@@ -101,15 +101,15 @@ touches_receive(PPID, T, RPM) ->
             spawn(machine, get_zmiekczacz, [self()]),
             touches_receive(PPID, T, RPM);
         {"Filled_Zmiekczacz"} -> 
-            spawn(machine, rotate, [self(), 400, 10]),
+            spawn(machine, rotate, [self(),"1" , 400, 10]),
             touches_receive(PPID, T, RPM);
-        {"Rotated"} ->
+        {"Rotated1"} ->
             spawn(machine, pump, [self()]),
             touches_receive(PPID, T, RPM);
         {"Pumped"} ->
-            spawn(machine, rotate_fast, [self(), 400, 15]),
+            spawn(machine, rotate, [self(), "2", 5*400, 15]),
             touches_receive(PPID, T, RPM);
-        {"Rotated_Fast"} ->
+        {"Rotated2"} ->
             PPID!{"FT_Success"}
     end.
 
@@ -120,26 +120,12 @@ pump(PPID) ->
     print({finished}),
     PPID!{"Pumped"}.
 
-rotate(PPID, RPM, Time) ->
+rotate(PPID, N, RPM, Time) ->
     print({printstep, "Rotating at " ++ integer_to_list(RPM) ++ " RPM"}),
     print({in_progress}),
     mySleep(Time),
     print({finished}),
-    PPID!{"Rotated"}.
-
-rotate2(PPID, RPM, Time) ->
-    print({printstep, "Rotating at " ++ integer_to_list(RPM) ++ " RPM"}),
-    print({in_progress}),
-    mySleep(Time),
-    print({finished}),
-    PPID!{"Rotated2"}.
-
-rotate_fast(PPID, RPM, Time) ->
-    print({printstep, "Rotating at " ++ integer_to_list(5*RPM) ++ " RPM"}),
-    print({in_progress}),
-    mySleep(Time),
-    print({finished}),
-    PPID!{"Rotated_Fast"}.
+    PPID!{"Rotated" ++ N}.
 
 heat(PPID, T) ->
     print({printstep, "Heating water up to " ++ integer_to_list(T) ++ " C"}),
